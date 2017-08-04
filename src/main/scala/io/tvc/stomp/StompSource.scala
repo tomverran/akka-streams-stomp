@@ -1,6 +1,7 @@
 package io.tvc.stomp
 
 import java.net.InetSocketAddress
+import java.nio.charset.{Charset, CodingErrorAction}
 
 import akka.NotUsed
 import akka.actor.ActorSystem
@@ -9,6 +10,7 @@ import akka.stream.scaladsl.{Concat, Source, Tcp}
 import akka.util.ByteString
 
 import scala.concurrent.duration._
+import scala.util.Try
 
 object StompSource {
 
@@ -23,10 +25,8 @@ object StompSource {
     ByteString(
       s"""
        |$verb
-       |${headers.map { case (k, v) => s"$k:$v" }.mkString }
-       |${body.mkString}
-       |${Char.MinValue}
-      """.stripMargin
+       |${headers.map { case (k, v) => s"$k:$v\n" }.mkString }
+       |${body.mkString}${Char.MinValue}""".stripMargin.stripPrefix("\n")
     )
 
   /**
@@ -71,7 +71,21 @@ object StompSource {
     * Given a stomp message encoded into a byte string,
     * decode it to split out the headers and the body
     */
-  private[stomp] def decode(bs: ByteString): StompMessage = ???
+  private[stomp] def decode(bs: ByteString): StompMessage[ByteString] = {
+    val (verb, rest) = bs.span(('A' to 'Z').map(_.toByte).contains)
+    val (rawHeaders, body) = rest.dropRight(1).splitAt(rest.indexOfSlice(List('\n','\n')))
+
+    val headers: List[(String, String)] = for {
+      headerLine <- rawHeaders.decodeString("UTF-8").split('\n').toList if headerLine.contains(':')
+      (k, v) = headerLine.span(_ != ':')
+    } yield k -> v.drop(1)
+
+   StompMessage(
+      verb = verb.decodeString("UTF-8"),
+      headers = headers.toMap,
+      body = Some(body.drop(2)).filter(_.nonEmpty)
+    )
+  }
 
 
   /**
@@ -86,7 +100,7 @@ object StompSource {
     implicit
     as: ActorSystem,
     mat: ActorMaterializer
-  ): Source[StompMessage, NotUsed] = {
+  ): Source[StompMessage[ByteString], NotUsed] = {
 
     val frames = List(
       connect(host, credentials),
