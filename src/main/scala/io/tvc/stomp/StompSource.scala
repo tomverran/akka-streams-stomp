@@ -1,7 +1,7 @@
 package io.tvc.stomp
 
 import java.net.InetSocketAddress
-import java.nio.charset.{Charset, CodingErrorAction}
+import java.nio.charset.Charset
 
 import akka.NotUsed
 import akka.actor.ActorSystem
@@ -10,9 +10,12 @@ import akka.stream.scaladsl.{Concat, Source, Tcp}
 import akka.util.ByteString
 
 import scala.concurrent.duration._
-import scala.util.Try
 
 object StompSource {
+
+  // Java strings are UTF-16 by default
+  private [stomp] def toUtf8(s: String): ByteString =
+    ByteString(Charset.forName("UTF-8").encode(s))
 
   /**
     * Create a stomp frame, ready to send to the external server
@@ -22,12 +25,9 @@ object StompSource {
     headers: List[(String, String)],
     body: Option[String]
   ): ByteString =
-    ByteString(
-      s"""
-       |$verb
-       |${headers.map { case (k, v) => s"$k:$v\n" }.mkString }
-       |${body.mkString}${Char.MinValue}""".stripMargin.stripPrefix("\n")
-    )
+    toUtf8 (s"$verb\n") ++
+    toUtf8 (headers.map { case (k, v) => s"$k:$v\n" }.mkString) ++
+    toUtf8 ('\n' + body.mkString) :+ ZERO_OCTET
 
   /**
     * Create a CONNECT stomp frame, with hard coded heart beat and version rules
@@ -86,7 +86,6 @@ object StompSource {
       body = Some(body.drop(2)).filter(_.nonEmpty)
     )
   }
-
 
   /**
     * Create a source that is able to read STOMP messages from the given host & queue

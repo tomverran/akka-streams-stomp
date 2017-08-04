@@ -25,8 +25,8 @@ object WaitForZeroByte extends GraphStage[FlowShape[ByteString, ByteString]] {
 
     private def handleNew(newBytes: ByteString) = {
       val bytesSoFar = accumulatedBytes ++ newBytes
-      val (toEmit, toAccumulate) = bytesSoFar.splitAt(bytesSoFar.indexOf(Char.MinValue))
-      accumulatedBytes = toAccumulate.filterNot(_ == Char.MinValue)
+      val (toEmit, toAccumulate) = bytesSoFar.splitAt(bytesSoFar.indexOf(ZERO_OCTET) + 1)
+      accumulatedBytes = toAccumulate
       if (toEmit.nonEmpty) {
         emit(out, toEmit, () => readMore())
       } else {

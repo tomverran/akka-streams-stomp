@@ -18,15 +18,15 @@ class WaitForZeroByteTest extends FreeSpec with Matchers with ScalaFutures with 
       val result = Source(
         List(
           ByteString('a'),
-          ByteString("bcdefg"),
-          ByteString(Char.MinValue),
-          ByteString("foo")
+          StompSource.toUtf8("bcdefgo"),
+          ByteString(ZERO_OCTET),
+          StompSource.toUtf8("foo")
         )
       ).via(WaitForZeroByte)
         .runWith(Sink.seq)
 
       whenReady(result) { r =>
-        r shouldEqual Vector(ByteString("abcdefg"), ByteString("foo"))
+        r shouldEqual Vector(ByteString(s"abcdefgo") :+ ZERO_OCTET, ByteString("foo"))
       }
     }
   }
