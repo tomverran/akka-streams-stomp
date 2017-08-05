@@ -31,31 +31,4 @@ class StompSourceTest extends FreeSpec with Matchers with GeneratorDrivenPropert
     }
   }
 
-  "STOMP message decoder" - {
-
-    "Should be able to decode messages with only a verb" in {
-      val msg = StompSource.stompFrame(verb = "VERB", headers = List.empty, body = None)
-      StompSource.decode(msg) shouldEqual StompMessage(verb = "VERB", headers = Map.empty, body = None)
-    }
-
-    "Should ignore any malformed headers" in {
-      val msg = StompSource.toUtf8("VERB\nfoobar\n\n") :+ ZERO_OCTET
-      StompSource.decode(msg) shouldEqual StompMessage(verb = "VERB", headers = Map.empty, body = None)
-    }
-
-    "Should create byteStrings from the body of the message" in {
-      val body = "Why hello there, isn't the weather dreadful today?"
-      val msg = StompSource.stompFrame(verb = "VERB", headers = List.empty, body = Some(body))
-      StompSource.decode(msg) shouldEqual StompMessage(verb = "VERB", headers = Map.empty, body = Some(ByteString(body)))
-    }
-
-    "Should work when both headers and a body exist" in {
-      val msg = StompSource.stompFrame(verb = "VERB", headers = List("a" -> "b", "c" -> "d"), body = Some("foo"))
-      StompSource.decode(msg) shouldEqual StompMessage(verb = "VERB", headers = Map("a" -> "b", "c" -> "d"), body = Some(ByteString("foo")))
-    }
-
-    "Should substitute STOMP escape characters for their real counterparts" in {
-      pending
-    }
-  }
 }
