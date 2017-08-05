@@ -10,7 +10,7 @@ class StompSourceTest extends FreeSpec with Matchers with GeneratorDrivenPropert
   "STOMP frame generator" - {
 
     "Should not have any characters before the verb begins or after the final 0 octet" in {
-      val stompFrame = StompSource.stompFrame("FOO", List("a" -> "b"), Some("hello"))
+      val stompFrame = StompSource.stompFrame("FOO", List("a" -> "b"), Some(ByteString("hello")))
       stompFrame.last shouldEqual ZERO_OCTET
       stompFrame.head shouldEqual 'F'
     }
@@ -21,12 +21,12 @@ class StompSourceTest extends FreeSpec with Matchers with GeneratorDrivenPropert
 
     "Should maintain two line breaks between the headers and body" in {
       val expected = StompSource.toUtf8(s"VERB\nfoo:bar\n\nbody") :+ ZERO_OCTET
-      StompSource.stompFrame("VERB", List("foo" -> "bar"), Some("body")) shouldEqual expected
+      StompSource.stompFrame("VERB", List("foo" -> "bar"), Some(ByteString("body"))) shouldEqual expected
     }
 
     "Should UTF-8 encode strings so we never have more than one null byte per frame" in {
       forAll { s: String =>
-        StompSource.stompFrame("foo", List("foo" -> "bar"), Some(s)).count(_ == ZERO_OCTET) shouldEqual 1
+        StompSource.stompFrame("foo", List("foo" -> "bar"), Some(StompSource.toUtf8(s))).count(_ == ZERO_OCTET) shouldEqual 1
       }
     }
   }

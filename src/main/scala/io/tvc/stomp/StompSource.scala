@@ -23,11 +23,11 @@ object StompSource {
   private[stomp] def stompFrame(
     verb: String,
     headers: List[(String, String)],
-    body: Option[String]
+    body: Option[ByteString]
   ): ByteString =
     toUtf8 (s"$verb\n") ++
     toUtf8 (headers.map { case (k, v) => s"$k:$v\n" }.mkString) ++
-    toUtf8 ('\n' + body.mkString) :+ ZERO_OCTET
+    ('\n'.toByte +: body.getOrElse(ByteString.empty) :+ ZERO_OCTET)
 
   /**
     * Create a CONNECT stomp frame, with hard coded heart beat and version rules

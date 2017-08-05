@@ -27,33 +27,33 @@ object StompDecoder extends GraphStage[FlowShape[Byte, StompMessage[ByteString]]
     /**
       * Read from the inlet until we hit a particular byte
       */
-    private def readUntil(byte: Byte)(finish: ByteString => Unit, soFar: ByteString = ByteString.empty): Unit =
-      read(in)(b => if (b == `\n`) finish(soFar :+ b) else readUntil(byte)(finish, soFar :+ b), () => finish(soFar))
+    private def readUntil(c: Byte => Boolean)(finish: ByteString => Unit, soFar: ByteString = ByteString.empty): Unit =
+      read(in)(b => if (c(b)) finish(soFar :+ b) else readUntil(c)(finish, soFar :+ b), () => completeStage())
 
     /**
       * Read a particular number of bytes from the inlet
       */
     private def readUntilN(number: Int)(finish: ByteString => Unit): Unit =
-      readN(in, number)(bytes => finish(ByteString(bytes.toArray)), bytes => finish(ByteString(bytes.toArray)))
+      readN(in, number)(bytes => finish(ByteString(bytes.toArray)), bytes => completeStage())
 
     /**
       * Decode the verb part of the stomp message,
       * when finished it will begin decoding headers
       */
-    private def decodeVerb(): Unit =
-      readUntil(`\n`)(bs => decodeHeaders(bs.dropRight(1).decodeString("UTF-8")))
+    private def decodeVerb(prefix: ByteString = ByteString.empty): Unit =
+      readUntil(_ == `\n`)(bs => decodeHeaders((prefix ++ bs).dropRight(1).decodeString("UTF-8")))
 
     /**
       * Decode the headers of the stomp message,
       * when finished it will begin decoding the body
       */
     private def decodeHeaders(verb: String, soFar: Map[String, String] = Map.empty): Unit =
-      readUntil(`\n`) { bs =>
+      readUntil(_ == `\n`) { bs =>
         if (bs.forall(_ == `\n`)) {
           decodeBody(verb, soFar)
         } else {
           val (key, value) = bs.dropRight(1).decodeString("UTF-8").span(_ != ':')
-          decodeHeaders(verb, soFar.updated(key, value.drop(1)).filter { case (k, v) => k.nonEmpty && v.nonEmpty })
+          decodeHeaders(verb, soFar.updated(key, value.drop(1)).filter { case (k, v) => k.trim.nonEmpty && v.trim.nonEmpty })
         }
       }
 
@@ -62,12 +62,12 @@ object StompDecoder extends GraphStage[FlowShape[Byte, StompMessage[ByteString]]
       * when finished it will emit it and call decodeVerb
       */
     private def decodeBody(verb: String, headers: Map[String, String]): Unit = {
-      val contentLength = headers.get("content-length").flatMap(c => Try(c.toInt).toOption)
+      val contentLength = headers.get("content-length").flatMap(c => Try(c.toInt + 1).toOption)
       val onComplete: ByteString => Unit = { bs =>
         val output = StompMessage(verb, headers, Some(bs.dropRight(1)).filter(_.nonEmpty))
-        emit(out, output, () => decodeVerb()) // emit and begin again
+        emit(out, output, () => readUntil(_ != '\n'.toByte)(firstLetter => decodeVerb(firstLetter.takeRight(1))))
       }
-      contentLength.fold[Unit](readUntil(ZERO_OCTET)(onComplete))(readUntilN(_)(onComplete))
+      contentLength.fold[Unit](readUntil(_ == ZERO_OCTET)(onComplete))(readUntilN(_)(onComplete))
     }
 
     /**
