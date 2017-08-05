@@ -6,8 +6,6 @@ scalaVersion := "2.12.3"
 
 organization := "io.tvc"
 
-bintrayRepository := "releases"
-
 licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
 
 libraryDependencies ++= Seq(
