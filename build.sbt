@@ -1,7 +1,5 @@
 name := "akka-streams-stomp"
 
-version := "0.0.1"
-
 scalaVersion := "2.12.3"
 
 organization := "io.tvc"
